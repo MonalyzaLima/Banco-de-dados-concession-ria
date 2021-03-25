@@ -1,0 +1,768 @@
+
+--Discentes: Aldo Jonas, Monalyza, Luana
+
+OBS: A FUNCTION PARA MOSTRAR O TOTAL DE VENDA NO MÊS FICOU PARA A PROXIMA ENTREGA
+	
+
+set schema 'Monaliza';
+
+CREATE TABLE caixa(
+ 	id_caixa int PRIMARY KEY,
+ 	saldo numeric(7,2)
+);
+
+create table funcionario(
+	id_funcionario int primary key,
+	nome varchar(100),
+	cpf varchar (16),
+	id_caixa int,
+	foreign key (id_caixa) references caixa(id_caixa)
+);
+
+create table forma_pagamento(
+	id_forma_pagamento int primary key,
+	tipo_pagamento varchar(100)
+);
+
+ CREATE TABLE fornecedor(
+   	id_fornecedor int primary key,
+	nome varchar(100),
+   	cnpj varchar(20)
+ );
+ 
+ CREATE TABLE compra (
+ 	id_compra int PRIMARY KEY,
+ 	id_fornecedor int,
+ 	nota_fiscal varchar(30),
+ 	valor_totall numeric(10,2),
+	quantidade int,	 	
+ 	data date,
+ 	FOREIGN KEY (id_fornecedor) REFERENCES fornecedor (id_fornecedor)
+);
+
+CREATE TABLE produto (
+ 	id_produto int PRIMARY KEY,
+	nome varchar(20),
+ 	ano int, 
+ 	cor varchar(20),
+ 	valor numeric(10,2),
+ 	quantidade int,
+ 	tipo_veiculo varchar(20),
+	marca varchar (20)
+);
+
+CREATE TABLE item_compra( 	
+	id_item_compra INT PRIMARY Key,
+	valor_bruto NUMERIC(10,2), 	 	
+	quantidade int,	
+	imposto int,
+	frete NUMERIC(10,2),  	
+	id_produto int,	
+	id_compra int,
+	FOREIGN KEY(id_compra) REFERENCES compra(id_compra),
+	FOREIGN KEY(id_produto) REFERENCES produto(id_produto)
+);
+	
+create table cliente(
+	id_cliente int primary key,
+	nome varchar(100),
+	cpf varchar (16) 
+);
+
+CREATE TABLE venda( 	
+	id_venda int primary key, 	
+	valor_total numeric(10,2) , 	
+	valor_troco numeric(10,2), 	 	
+	desconto numeric(10,2), 	
+	data_venda date, 	
+	hora time, 	
+	nota_fiscal varchar(60), 	
+	id_caixa int,
+	id_cliente int,
+	FOREIGN KEY(id_caixa) REFERENCES caixa(id_caixa), 		
+	FOREIGN KEY(id_cliente) REFERENCES cliente(id_cliente) 	
+);
+
+CREATE TABLE item_venda( 	
+	id_item_venda int primary key, 	
+	quantidade int,	
+	preco_unitario NUMERIC(10,2) , 	
+	id_produto int,	
+	id_venda int,	
+	FOREIGN KEY(id_produto) REFERENCES produto(id_produto), 	
+	FOREIGN KEY(id_venda) REFERENCES venda(id_venda)
+);
+
+create table endereco(
+	id_endereco int primary key,
+	descricao varchar(100),
+	id_cliente int,
+	foreign key (id_cliente) references cliente(id_cliente)
+);
+
+CREATE TABLE telefone(
+   	id_telefone int primary key,
+   	numero varchar(15),
+   	referencias varchar(100),
+   	id_cliente int,
+   	id_fornecedor int,
+   	foreign key (id_cliente) references cliente(id_cliente),
+   	foreign key (id_fornecedor) references fornecedor(id_fornecedor)
+ );
+ 
+ create table pagamento_venda(
+	id_pagamento_venda int primary key,
+	valor numeric(10,2),
+	valor_pago numeric(10,2),
+	id_venda int,
+	id_forma_pagamento int,
+	foreign key (id_venda) references venda(id_venda),
+	foreign key (id_forma_pagamento) references forma_pagamento(id_forma_pagamento)
+);
+
+CREATE TABLE pagamento_compra(
+   	id_pagamento_compra int primary key,
+	valor numeric(10,2),
+	valor_pago numeric(10,2),
+   	id_compra int,
+   	id_forma_pagamento int,
+   	foreign key (id_compra) references compra(id_compra),
+   	foreign key (id_forma_pagamento) references forma_pagamento(id_forma_pagamento)
+ );
+ 
+ CREATE TABLE item_devolucao (
+ 	id_devolucao int primary key,
+	motivo varchar(100),
+ 	quantidade int,
+	id_compra int,
+ 	FOREIGN KEY (id_compra) REFERENCES compra (id_compra),
+	id_produto int,
+	FOREIGN KEY(id_produto) REFERENCES produto(id_produto)
+);
+
+
+
+create or replace function setar_quantidade()
+returns trigger AS $$
+begin
+    update produto set quantidade = quantidade + new.quantidade where id_produto = new.id_produto;
+  RETURN NULL;
+end;
+$$ LANGUAGE plpgsql;
+
+
+create trigger trg_setar_quantidade
+after insert ON item_compra
+for each row
+execute procedure setar_quantidade();
+
+
+create or replace function atualizar_quantidade()
+returns trigger AS $$
+begin
+    update produto set quantidade = quantidade - old.quantidade where id_produto = old.id_produto;
+    update produto set quantidade = quantidade + new.quantidade where id_produto = new.id_produto;
+  RETURN NULL;
+end;
+$$ LANGUAGE plpgsql;
+
+
+create trigger trg_atualizar_quantidade
+after update ON item_compra
+for each row
+execute procedure atualizar_quantidade();
+
+
+
+create function exclui_produto()
+returns trigger AS $$
+begin
+  update produto set quantidade = quantidade - old.quantidade where id_produto = old.id_produto;
+  RETURN NULL;
+end;
+$$ LANGUAGE plpgsql;
+
+
+create trigger trg_exclui_produto
+after delete ON item_compra
+for each row
+execute procedure exclui_produto();
+
+
+create or replace function insert_produto_venda()
+returns trigger AS $$
+begin
+	update produto set quantidade = quantidade + new.quantidade where id_produto = new.id_produto;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_insert_produto_venda
+after insert ON item_venda
+for each row
+execute procedure insert_produto_venda();
+
+
+create or replace function update_produto_venda()
+returns trigger AS $$
+begin
+	update produto set quantidade = quantidade - old.quantidade where id_produto = old.id_produto;
+        update produto set quantidade = quantidade + new.quantidade where id_produto = new.id_produto;
+	
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+
+create trigger trg_update_produto_venda
+after update ON item_venda
+for each row
+execute procedure update_produto_venda();
+
+create or replace function excluir_produto_venda()
+returns trigger AS $$
+begin
+	update produto set quantidade = quantidade - old.quantidade where id_produto = old.id_produto;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_excluir_produto_venda
+after delete ON item_venda
+for each row
+execute procedure excluir_produto_venda();
+
+
+create or replace function setar_quant_prod_dev()
+returns trigger AS $$
+begin
+	update produto set quantidade = quantidade + new.quantidade 
+	where id_produto = new.id_produto;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_setar_quant_prod_dev
+after insert ON item_devolucao
+for each row
+execute procedure setar_quant_prod_dev();
+
+
+create or replace function ex_quant_prod_dev()
+returns trigger AS $$
+begin
+	update produto set quantidade = quantidade - old.quantidade 
+	where id_produto = old.id_produto;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_ex_quant_prod_dev
+after delete ON item_devolucao
+for each row
+execute procedure ex_quant_prod_dev();
+
+
+create or replace function atuali_quant_prod_dev()
+returns trigger AS $$
+begin
+	update produto set quantidade = quantidade - old.quantidade where id_produto = old.id_produto;
+	update produto set quantidade = quantidade + new.quantidade where id_produto = new.id_produto;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_atuali_quant_prod_dev
+after update ON item_devolucao
+for each row
+execute procedure atuali_quant_prod_dev();
+
+create or replace function setar_compra()
+returns trigger AS $$
+begin
+	update compra set 
+	valor_totall = valor_totall + (new.valor_bruto + (new.valor_bruto * (new.imposto/100)) * new.quantidade + new.frete * new.quantidade),
+	quantidade = quantidade + new.quantidade
+	where id_compra = new.id_compra;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_setar_compra
+after insert ON item_compra
+for each row
+execute procedure setar_compra();
+
+create or replace function setar_valor_produto()
+returns trigger AS $$
+begin
+	update produto set 
+	valor = (new.valor_bruto + (new.valor_bruto * (new.imposto/100))  + new.frete )
+	where id_produto = new.id_produto;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_setar_valor_produto
+after insert ON item_compra
+for each row
+execute procedure setar_valor_produto();
+
+
+create or replace function setar_valor_total_venda()
+returns trigger AS $$
+begin
+	update venda set 
+	valor_total = valor_total + new.preco_unitario * new.quantidade
+	where id_venda = new.id_venda;
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+create trigger trg_setar_valor_total_venda
+after insert ON item_venda
+for each row
+execute procedure setar_valor_total_venda();
+
+insert into fornecedor(id_fornecedor, nome, cnpj)
+values(1, 'ford',  '12805175500');
+
+insert into fornecedor(id_fornecedor, nome,  cnpj)
+values(2, 'Honda', '98763826282');
+
+insert into fornecedor(id_fornecedor, nome,  cnpj)
+values(3, 'Yamaha', '87374546847');
+
+insert into produto(id_produto, nome, ano, cor, valor, quantidade, tipo_veiculo, marca)
+values(1,'uno',  2019, 'prata', 0, 0, 'carro', 'esportivo' );
+
+insert into produto(id_produto, nome, ano, cor, valor, quantidade, tipo_veiculo, marca)
+values(2,'Titan 150',  2008, 'vermelha', 0, 0, 'moto', 'esportivo');
+
+insert into produto(id_produto, nome, ano, cor, valor, quantidade, tipo_veiculo, marca)
+values(3,'Titan 125', 2003, 'prata', 0, 0, 'moto', 'casual');
+
+insert into produto(id_produto, nome, ano, cor, valor, quantidade, tipo_veiculo, marca)
+values(4,'Fiat',  2019, 'prata', 0, 0, 'carro', 'esportivo' );
+
+insert into produto(id_produto, nome, ano, cor, valor, quantidade, tipo_veiculo, marca)
+values(5,'Chevrolet',  2008, 'vermelha', 0, 0, 'carro', 'esportivo');
+
+insert into produto(id_produto, nome, ano, cor, valor, quantidade, tipo_veiculo, marca)
+values(6,'Citroën', 2003, 'prata', 0, 0, 'carro', 'casual');
+
+insert into cliente(id_cliente, nome, cpf)
+values(1, 'Aldo Jonas', '78503478500' );
+
+insert into cliente(id_cliente, nome, cpf)
+values(2, 'Monalyza', '12805175500');
+
+insert into cliente(id_cliente, nome, cpf)
+values(3, 'Luana', '9847376363');
+
+insert into cliente(id_cliente, nome, cpf)
+values(4, 'Lucas', '65438987');
+
+insert into cliente(id_cliente, nome, cpf)
+values(5, 'Hanna', '4534276456');
+
+insert into cliente(id_cliente, nome, cpf)
+values(6, 'Luiz', '8754212455');
+
+insert into cliente(id_cliente, nome, cpf)
+values(7, 'Maria', '25253478500' );
+
+insert into cliente(id_cliente, nome, cpf)
+values(8, 'José', '05897175500');
+
+insert into cliente(id_cliente, nome, cpf)
+values(9, 'Fernanda', '414847376363');
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(1, 'Rua B, 99, Asa Branca, Candiba', 1);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(2, 'Rua A, 55, Centro, Candiba', 2);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(3, 'Rua c, 19, São francisco, Guanambi', 3);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(4, 'Rua Joaquim Dias Guemarães, 497, São francisco, Guanambi', 4);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(5, 'Rua d, 44, Renascer, Guanambi', 5);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(6, 'Rua Vasco da Gama, 19, Paraiso, Guanambi', 6);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(7, 'Rua r, 90, Asa Branca, Candiba', 7);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(8, 'Rua v, 35, Centro, Candiba', 8);
+
+insert into endereco(id_endereco, descricao, id_cliente)
+values(9, 'Rua d, 79, São francisco, Guanambi', 9);
+
+insert into telefone(id_telefone, numero, referencias, id_cliente)
+values(1, '77 98898888', 'Celular Pessoal', 1);
+
+insert into telefone(id_telefone, numero, referencias, id_cliente)
+values(2, '77 981523691', 'Celular Pessoal', 2);
+
+insert into telefone(id_telefone, numero, referencias, id_fornecedor)
+values(3, '77 981578423', 'Celular Pessoal', 1);
+
+insert into telefone(id_telefone, numero, referencias, id_fornecedor)
+values(4, '77 978521452', 'Celular Pessoal', 2);
+
+insert into telefone(id_telefone, numero, referencias, id_cliente)
+values(5, '77 99897878', 'Celular Pessoal', 1);
+
+insert into telefone(id_telefone, numero, referencias, id_cliente)
+values(6, '77 991523699', 'Celular Pessoal', 2);
+
+insert into telefone(id_telefone, numero, referencias, id_fornecedor)
+values(7, '77 9885214521', 'Celular Pessoal', 1);
+
+insert into telefone(id_telefone, numero, referencias, id_fornecedor)
+values(8, '77 978432178', 'Celular Pessoal', 2);
+
+insert into telefone(id_telefone, numero, referencias, id_cliente)
+values(9, '77 251598888', 'Celular Pessoal', 7);
+
+insert into telefone(id_telefone, numero, referencias, id_cliente)
+values(10, '77 9814515691', 'Celular Pessoal', 8);
+
+insert into telefone(id_telefone, numero, referencias, id_fornecedor)
+values(11, '77 9844878423', 'Celular Pessoal', 9);
+
+insert into caixa(id_caixa, saldo)
+values(1, 10000);
+
+insert into caixa(id_caixa, saldo)
+values(2, 10000);
+
+insert into caixa(id_caixa, saldo)
+values(3, 30000);
+
+insert into funcionario(id_funcionario, nome, cpf,   id_caixa)
+values(1, 'Zé', '01020203000',   1);
+
+insert into funcionario(id_funcionario, nome, cpf,  id_caixa)
+values(2, 'Maria', '21080243080',  2);
+
+insert into funcionario(id_funcionario, nome, cpf,  id_caixa)
+values(3, 'João', '863847519832',  3);
+
+insert into forma_pagamento(id_forma_pagamento, tipo_pagamento)
+values(1, 'cartão de crédito');
+
+insert into forma_pagamento(id_forma_pagamento, tipo_pagamento)
+values(2, 'A vista');
+
+insert into forma_pagamento(id_forma_pagamento, tipo_pagamento)
+values(3, 'entrada e cartão de crédito');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(1, 1, '11234562130', 0, 0, '2020/11/10');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(2, 1, '11555656190', 0, 0, '2020/11/10');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(3, 2, '57566867463', 0, 0, '2020/11/10');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(4, 2, '26544562155', 0, 0, '2021/03/12');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(5, 3, '26544987860', 0, 0, '2021/03/12');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(6, 1, '22225562130', 0, 2, '2021/02/25');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(7, 2, '5885656190', 0, 1, '2021/03/12');
+
+insert into compra(id_compra, id_fornecedor, nota_fiscal, valor_totall, quantidade, data)
+values(8, 2, '575545867463', 0, 2, '2021/03/14');
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(1, 0,  0, 0, '2018/04/12', '16:00:05', 4624377, 2, 1);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(2, 0,  0, 0, '2019/06/02', '14:31:40', 6253748, 1, 2);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(3, 0,  0, 0, '2020/12/12', '14:07:16', 7556797, 2, 2);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(4, 0,  0, 0, '2021/01/17', '09:14:30', 7865397, 3, 1);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(5, 0,  0, 0, '2021/02/22', '08:47:09', 7866743, 1, 2);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(6, 0,  0, 0, '2021/02/02', '11:37:55', 7866744, 3, 1);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(7, 0,  0, 0, '2021/03/12', '16:00:05', 44444377, 2, 7);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(8, 0,  0, 0, '2021/03/02', '14:31:40', 65553748, 1, 8);
+
+insert into venda(id_venda, valor_total, valor_troco,  desconto, data_venda, hora, nota_fiscal, id_caixa, id_cliente)
+values(9, 0,  0, 0, '2021/03/12', '14:07:16', 755554797, 2, 9);
+
+insert into pagamento_venda(id_pagamento_venda, valor, valor_pago, id_venda, id_forma_pagamento)
+values(1, 0, 0, 1, 1);
+
+insert into pagamento_venda(id_pagamento_venda, valor, valor_pago, id_venda, id_forma_pagamento)
+values(2, 0, 0, 2, 2);
+
+insert into pagamento_venda(id_pagamento_venda, valor, valor_pago, id_venda, id_forma_pagamento)
+values(3, 0, 0, 3, 2);
+
+insert into pagamento_venda(id_pagamento_venda, valor, valor_pago, id_venda, id_forma_pagamento)
+values(4, 0, 0, 4, 3);
+
+insert into pagamento_venda(id_pagamento_venda, valor, valor_pago, id_venda, id_forma_pagamento)
+values(5, 0, 0, 4, 1);
+
+insert into pagamento_venda(id_pagamento_venda, valor, valor_pago, id_venda, id_forma_pagamento)
+values(6, 0, 0, 4, 3);
+
+insert into pagamento_compra(id_pagamento_compra, valor, valor_pago, id_compra, id_forma_pagamento)
+values(1, 0, 0, 1, 1);
+ 
+insert into pagamento_compra(id_pagamento_compra, valor, valor_pago, id_compra, id_forma_pagamento)
+values(2, 0, 0, 2, 2);
+
+insert into pagamento_compra(id_pagamento_compra, valor, valor_pago, id_compra, id_forma_pagamento)
+values(3, 0, 0, 3, 3);
+
+insert into pagamento_compra(id_pagamento_compra, valor, valor_pago, id_compra, id_forma_pagamento)
+values(4, 0, 0, 4, 2);
+
+insert into pagamento_compra(id_pagamento_compra, valor, valor_pago, id_compra, id_forma_pagamento)
+values(5, 0, 0, 4, 1);
+
+insert into pagamento_compra(id_pagamento_compra, valor, valor_pago, id_compra, id_forma_pagamento)
+values(6, 0, 0, 4, 3);
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+--values(1, 'Falhas na pintura', 1, 1, 1); 
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+--values(2, 'Riscos no vidro', 2, 2,2);
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+--values(3, 'Retrovisor quebrado', 3, 3,1);
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+--values(4, 'Retrovisor quebrado', 1, 4, 2);
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+--values(5, 'Falhas na pintura', 1, 5, 1);
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+--values(6, 'Parabrisa Trincado', 1, 6, 1);
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+values(7, 'Falhas na pintura', 1, 7 , 7); 
+
+--insert into item_devolucao(id_devolucao, motivo, quantidade, id_compra, id_produto)
+values(8, 'Riscos no vidro', 1, 8, 8);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(1, 50000.00, 10, 10, 30, 1, 1);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(2, 16000.00, 10, 10, 30, 2, 2);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(3, 15000.00, 10, 10, 30, 3, 3);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(4, 90000.00, 10, 10, 30, 1, 4);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(5, 11000.00, 10, 10, 30, 2, 5);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(6, 11000.00, 10, 10, 30, 2, 1);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(7, 60000.00, 1, 10, 30, 8, 8);
+
+insert into item_compra(id_item_compra, valor_bruto, quantidade, imposto, frete, id_produto, id_compra)
+values(8, 20000.00, 1, 10, 30, 9, 9);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(1, 1, 12000, 2, 1);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(2, 1, 16000, 1, 2);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(3, 1, 95000, 3, 3);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(4, 1, 95000, 3, 4);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(5, 1, 12000, 2, 5);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(6, 1, 16000, 1, 6);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(7, 1, 12000, 7, 7);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(8, 1, 16000, 8, 8);
+
+insert into item_venda(id_item_venda, quantidade, preco_unitario,  id_produto, id_venda)
+values(9, 1, 95000, 9, 9);
+
+
+CREATE OR REPLACE FUNCTION MelhoresClientes(numeric(15,2))
+RETURNS SETOF cliente AS 
+$$
+begin
+return query SELECT * FROM cliente WHERE id_cliente IN
+(
+SELECT cliente.id_cliente FROM cliente
+INNER JOIN venda ON venda.id_cliente = cliente.id_cliente
+INNER JOIN item_venda ON item_venda.id_venda = venda.id_venda
+GROUP BY cliente.id_cliente
+HAVING SUM(venda.valor_total) >= $1
+);
+END
+$$ LANGUAGE plpgsql;
+
+--select id_cliente, nome from melhoresClientes(10);
+
+
+CREATE OR REPLACE FUNCTION SelecionaClientes()
+RETURNS table (nome varchar, valor numeric(7,0)) AS 
+$$
+begin
+return query SELECT cliente.nome,sum(venda.valor_total) FROM cliente,venda where
+               cliente.id_cliente = venda.id_cliente
+			   GROUP BY cliente.id_cliente;
+			   
+END
+$$ LANGUAGE plpgsql;
+
+--select SelecionaClientes();
+
+
+
+CREATE OR REPLACE FUNCTION SelecionaCaixa()
+RETURNS table (nome varchar, saldo numeric(7,2)) AS 
+$$
+begin
+return query SELECT funcionario.nome, caixa.saldo FROM funcionario, caixa where
+               funcionario.id_caixa = caixa.id_caixa;
+END
+$$ LANGUAGE plpgsql;
+
+--select SelecionaCaixa();
+
+CREATE OR REPLACE FUNCTION MelhoresFuncionarios(numeric(15,2))
+RETURNS SETOF funcionario AS 
+$$
+begin
+return query SELECT * FROM funcionario WHERE id_funcionario IN
+(
+SELECT funcionario.id_funcionario FROM funcionario
+INNER JOIN caixa ON caixa.id_caixa = funcionario.id_caixa
+INNER JOIN venda ON venda.id_caixa = caixa.id_caixa
+GROUP BY funcionario.id_funcionario
+HAVING SUM(venda.valor_total) >= $1
+);
+END
+$$ LANGUAGE plpgsql;
+
+--select id_funcionario, nome from MelhoresFuncionarios(16000);
+
+
+CREATE OR REPLACE FUNCTION VendaDia(data_venda date)
+RETURNS SETOF venda AS 
+$$
+begin
+return query SELECT * FROM venda WHERE venda.data_venda = $1;
+END
+$$ LANGUAGE plpgsql;
+
+--select id_venda, valor_total, valor_troco, id_cliente, desconto from VendaDia ('2020/12/12');
+
+
+CREATE OR REPLACE FUNCTION ProdutosBaixoEstoque(quantidade int)
+RETURNS SETOF produto AS 
+$$
+begin
+return query SELECT * FROM produto WHERE produto.quantidade <= $1 group by id_produto;
+END
+$$ LANGUAGE plpgsql;
+
+--select id_produto, nome, quantidade from ProdutosBaixoEstoque(15);
+
+
+
+CREATE OR REPLACE FUNCTION ProdutoMaisVendido()
+RETURNS table (id_produto int, quantidade int, nome varchar) AS 
+$$
+begin
+return query SELECT item_venda.id_produto, item_venda.quantidade, produto.nome FROM item_venda, produto where
+               item_venda.id_produto = produto.id_produto;
+			  	
+END
+$$ LANGUAGE plpgsql;
+
+--select ProdutoMaisVendido();
+
+
+
+
+CREATE OR REPLACE FUNCTION ProdutoMaisVendido()
+RETURNS table (nome varchar,quantidade bigint ) AS 
+$$
+begin
+	return query select pr.nome as nome, sum(iv.quantidade) as quantidade from item_venda as iv, produto as pr where pr.id_produto = iv.id_produto GROUP BY pr.id_produto;
+END
+$$ LANGUAGE plpgsql;
+
+--select * from ProdutoMaisVendido();
+
+CREATE OR REPLACE FUNCTION TotalVenda(var VARCHAR)
+RETURNS TABLE (valor_total numeric, data_venda date) AS 
+$$
+	begin
+		return query SELECT SUM(venda.valor_total) as valor_total, venda.data_venda from venda 
+		WHERE to_char(venda.data_venda, 'MM') = $1
+		group by venda.valor_total, venda.data_venda;
+	END
+$$ LANGUAGE plpgsql;
+
+--select * from TotalVenda('12');
+
+
+
+CREATE OR REPLACE FUNCTION ProdutoMaisVendido()
+RETURNS table (nome varchar,quantidade bigint ) AS 
+$$
+begin
+	return query select pr.nome as nome, sum(iv.quantidade) as quantidade from item_venda as iv, produto as pr where pr.id_produto = iv.id_produto GROUP BY pr.id_produto;
+END
+$$ LANGUAGE plpgsql;
+
+--select * from ProdutoMaisVendido();
+
+
+
+
+
